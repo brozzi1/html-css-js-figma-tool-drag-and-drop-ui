@@ -1,0 +1,1358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Advanced Tailwind UI Generator</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .drag-over {
+      border: 2px dashed #3b82f6 !important;
+      background-color: rgba(59, 130, 246, 0.1) !important;
+    }
+    .element-selected {
+      outline: 2px solid #10b981;
+      outline-offset: 2px;
+    }
+    .element-hover {
+      outline: 1px dashed #6b7280;
+    }
+    .scrollbar-thin::-webkit-scrollbar {
+      width: 6px;
+    }
+    .scrollbar-thin::-webkit-scrollbar-track {
+      background: #f1f5f9;
+    }
+    .scrollbar-thin::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 3px;
+    }
+    .dragging {
+      opacity: 0.5;
+      position: absolute;
+      z-index: 9999;
+      pointer-events: none;
+    }
+    .drop-zone {
+      min-height: 40px;
+    }
+    .layer-item {
+      padding: 6px 8px;
+      border-bottom: 1px solid #eee;
+      cursor: move;
+      transition: background-color 0.2s;
+    }
+    .layer-item:hover {
+      background-color: #f3f4f6;
+    }
+    .layer-item.selected {
+      background-color: #e0f2fe;
+      border-left: 3px solid #0ea5e9;
+    }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+  <div class="flex h-screen">
+    <!-- Left Sidebar - Element Library -->
+    <div class="w-64 bg-white border-r border-gray-200 overflow-y-auto scrollbar-thin">
+      <div class="p-4 border-b border-gray-200">
+        <h2 class="text-lg font-bold text-gray-900">Elements</h2>
+      </div>
+      <div class="p-4 space-y-2">
+        <div class="text-sm font-medium text-gray-700 mb-2">Layout</div>
+        <div class="draggable-element bg-blue-100 p-2 rounded cursor-move text-sm" data-element="div">
+          📦 Container (div)
+        </div>
+        <div class="draggable-element bg-purple-100 p-2 rounded cursor-move text-sm" data-element="section">
+          📄 Section
+        </div>
+        <div class="draggable-element bg-green-100 p-2 rounded cursor-move text-sm" data-element="article">
+          📰 Article
+        </div>
+        
+        <div class="text-sm font-medium text-gray-700 mb-2 mt-4">Typography</div>
+        <div class="draggable-element bg-red-100 p-2 rounded cursor-move text-sm" data-element="h1">
+          🎯 Heading 1 (h1)
+        </div>
+        <div class="draggable-element bg-red-100 p-2 rounded cursor-move text-sm" data-element="h2">
+          🎯 Heading 2 (h2)
+        </div>
+        <div class="draggable-element bg-orange-100 p-2 rounded cursor-move text-sm" data-element="p">
+          📝 Paragraph (p)
+        </div>
+        <div class="draggable-element bg-yellow-100 p-2 rounded cursor-move text-sm" data-element="span">
+          ✨ Span
+        </div>
+        
+        <div class="text-sm font-medium text-gray-700 mb-2 mt-4">Interactive</div>
+        <div class="draggable-element bg-indigo-100 p-2 rounded cursor-move text-sm" data-element="button">
+          🔘 Button
+        </div>
+        <div class="draggable-element bg-teal-100 p-2 rounded cursor-move text-sm" data-element="input">
+          📥 Input
+        </div>
+        <div class="draggable-element bg-cyan-100 p-2 rounded cursor-move text-sm" data-element="textarea">
+          📄 Textarea
+        </div>
+        
+        <div class="text-sm font-medium text-gray-700 mb-2 mt-4">Media</div>
+        <div class="draggable-element bg-pink-100 p-2 rounded cursor-move text-sm" data-element="img">
+          🖼️ Image
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Canvas Area -->
+    <div class="flex-1 flex flex-col">
+      <div class="bg-white border-b border-gray-200 p-4">
+        <div class="flex items-center justify-between">
+          <h1 class="text-xl font-bold text-gray-900">UI Canvas</h1>
+          <div class="flex space-x-2">
+            <button id="clearCanvas" class="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 transition-colors">
+              Clear Canvas
+            </button>
+            <button id="exportCode" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors">
+              Export Code
+            </button>
+          </div>
+        </div>
+      </div>
+      
+      <div class="flex-1 p-4">
+        <div id="canvas" class="min-h-96 bg-white border-2 border-dashed border-gray-300 rounded-lg p-4 relative drop-zone">
+          <div class="text-center text-gray-500 pointer-events-none">
+            Drag elements here to start building your UI
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Sidebar - Properties & Layers Panel -->
+    <div class="w-80 bg-white border-l border-gray-200 overflow-y-auto scrollbar-thin">
+      <div class="p-4 border-b border-gray-200">
+        <div class="flex space-x-2 mb-2">
+          <button id="propertiesTab" class="px-3 py-1 text-sm font-medium border-b-2 border-blue-500 text-blue-600">Properties</button>
+          <button id="layersTab" class="px-3 py-1 text-sm font-medium text-gray-500 hover:text-gray-700">Layers</button>
+        </div>
+        <h2 class="text-lg font-bold text-gray-900 mt-2">Properties</h2>
+        <div id="selectedElement" class="text-sm text-gray-600 mt-1">No element selected</div>
+      </div>
+      
+      <!-- Properties Panel -->
+      <div id="propertiesPanel" class="p-4 space-y-4">
+        <!-- Layout & Sizing -->
+        <div class="space-y-3">
+          <h3 class="font-semibold text-gray-800 border-b pb-1">Layout & Sizing</h3>
+          
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Display</label>
+            <select id="displaySelect" class="w-full p-2 border border-gray-300 rounded text-sm">
+              <option value="">Default</option>
+              <option value="block">Block</option>
+              <option value="inline-block">Inline Block</option>
+              <option value="inline">Inline</option>
+              <option value="flex">Flex</option>
+              <option value="grid">Grid</option>
+              <option value="hidden">Hidden</option>
+            </select>
+          </div>
+          
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Width</label>
+              <select id="widthSelect" class="w-full p-2 border border-gray-300 rounded text-sm">
+                <option value="">Auto</option>
+                <option value="w-full">Full</option>
+                <option value="w-1/2">1/2</option>
+                <option value="w-1/3">1/3</option>
+                <option value="w-1/4">1/4</option>
+                <option value="w-fit">Fit Content</option>
+                <option value="w-screen">Screen</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Height</label>
+              <select id="heightSelect" class="w-full p-2 border border-gray-300 rounded text-sm">
+                <option value="">Auto</option>
+                <option value="h-full">Full</option>
+                <option value="h-screen">Screen</option>
+                <option value="h-fit">Fit Content</option>
+                <option value="h-32">32</option>
+                <option value="h-64">64</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Spacing -->
+        <div class="space-y-3">
+          <h3 class="font-semibold text-gray-800 border-b pb-1">Spacing</h3>
+          
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Padding</label>
+              <select id="paddingSelect" class="w-full p-2 border border-gray-300 rounded text-sm">
+                <option value="">None</option>
+                <option value="p-1">1</option>
+                <option value="p-2">2</option>
+                <option value="p-4">4</option>
+                <option value="p-6">6</option>
+                <option value="p-8">8</option>
+                <option value="p-12">12</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Margin</label>
+              <select id="marginSelect" class="w-full p-2 border border-gray-300 rounded text-sm">
+                <option value="">None</option>
+                <option value="m-1">1</option>
+                <option value="m-2">2</option>
+                <option value="m-4">4</option>
+                <option value="m-6">6</option>
+                <option value="m-8">8</option>
+                <option value="m-auto">Auto</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Background -->
+        <div class="space-y-3">
+          <h3 class="font-semibold text-gray-800 border-b pb-1">Background</h3>
+          
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Background Color</label>
+            <select id="bgColorSelect" class="w-full p-2 border border-gray-300 rounded text-sm">
+              <option value="">None</option>
+              <option value="bg-white">White</option>
+              <option value="bg-black">Black</option>
+              <option value="bg-gray-50">Gray 50</option>
+              <option value="bg-gray-100">Gray 100</option>
+              <option value="bg-gray-200">Gray 200</option>
+              <option value="bg-gray-500">Gray 500</option>
+              <option value="bg-red-500">Red 500</option>
+              <option value="bg-blue-500">Blue 500</option>
+              <option value="bg-green-500">Green 500</option>
+              <option value="bg-yellow-500">Yellow 500</option>
+              <option value="bg-purple-500">Purple 500</option>
+              <option value="bg-pink-500">Pink 500</option>
+            </select>
+          </div>
+          
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Background Opacity</label>
+            <select id="bgOpacitySelect" class="w-full p-2 border border-gray-300 rounded text-sm">
+              <option value="">100%</option>
+              <option value="bg-opacity-75">75%</option>
+              <option value="bg-opacity-50">50%</option>
+              <option value="bg-opacity-25">25%</option>
+              <option value="bg-opacity-10">10%</option>
+            </select>
+          </div>
+          
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Gradient</label>
+            <select id="gradientSelect" class="w-full p-2 border border-gray-300 rounded text-sm">
+              <option value="">None</option>
+              <option value="bg-gradient-to-r from-blue-500 to-purple-600">Blue to Purple</option>
+              <option value="bg-gradient-to-br from-pink-500 to-orange-400">Pink to Orange</option>
+              <option value="bg-gradient-to-t from-green-400 to-blue-500">Green to Blue</option>
+              <option value="bg-gradient-to-tr from-yellow-400 to-red-500">Yellow to Red</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Border & Radius -->
+        <div class="space-y-3">
+          <h3 class="font-semibold text-gray-800 border-b pb-1">Border & Effects</h3>
+          
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Border</label>
+              <select id="borderSelect" class="w-full p-2 border border-gray-300 rounded text-sm">
+                <option value="">None</option>
+                <option value="border">Default</option>
+                <option value="border-2">2px</option>
+                <option value="border-4">4px</option>
+                <option value="border-gray-300">Gray</option>
+                <option value="border-blue-500">Blue</option>
+                <option value="border-red-500">Red</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Radius</label>
+              <select id="radiusSelect" class="w-full p-2 border border-gray-300 rounded text-sm">
+                <option value="">None</option>
+                <option value="rounded-sm">Small</option>
+                <option value="rounded">Default</option>
+                <option value="rounded-lg">Large</option>
+                <option value="rounded-xl">XL</option>
+                <option value="rounded-full">Full</option>
+              </select>
+            </div>
+          </div>
+          
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Shadow</label>
+            <select id="shadowSelect" class="w-full p-2 border border-gray-300 rounded text-sm">
+              <option value="">None</option>
+              <option value="shadow-sm">Small</option>
+              <option value="shadow">Default</option>
+              <option value="shadow-lg">Large</option>
+              <option value="shadow-xl">XL</option>
+              <option value="shadow-2xl">2XL</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Typography -->
+        <div class="space-y-3">
+          <h3 class="font-semibold text-gray-800 border-b pb-1">Typography</h3>
+          
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Text Color</label>
+            <select id="textColorSelect" class="w-full p-2 border border-gray-300 rounded text-sm">
+              <option value="">Default</option>
+              <option value="text-black">Black</option>
+              <option value="text-white">White</option>
+              <option value="text-gray-500">Gray 500</option>
+              <option value="text-gray-700">Gray 700</option>
+              <option value="text-red-500">Red 500</option>
+              <option value="text-blue-500">Blue 500</option>
+              <option value="text-green-500">Green 500</option>
+            </select>
+          </div>
+          
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Font Size</label>
+              <select id="fontSizeSelect" class="w-full p-2 border border-gray-300 rounded text-sm">
+                <option value="">Default</option>
+                <option value="text-xs">XS</option>
+                <option value="text-sm">Small</option>
+                <option value="text-base">Base</option>
+                <option value="text-lg">Large</option>
+                <option value="text-xl">XL</option>
+                <option value="text-2xl">2XL</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Font Weight</label>
+              <select id="fontWeightSelect" class="w-full p-2 border border-gray-300 rounded text-sm">
+                <option value="">Default</option>
+                <option value="font-light">Light</option>
+                <option value="font-normal">Normal</option>
+                <option value="font-semibold">Semibold</option>
+                <option value="font-bold">Bold</option>
+              </select>
+            </div>
+          </div>
+          
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Text Alignment</label>
+            <select id="textAlignSelect" class="w-full p-2 border border-gray-300 rounded text-sm">
+              <option value="">Default</option>
+              <option value="text-left">Left</option>
+              <option value="text-center">Center</option>
+              <option value="text-right">Right</option>
+              <option value="text-justify">Justify</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Flexbox -->
+        <div class="space-y-3">
+          <h3 class="font-semibold text-gray-800 border-b pb-1">Flexbox</h3>
+          
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Justify</label>
+              <select id="justifySelect" class="w-full p-2 border border-gray-300 rounded text-sm">
+                <option value="">Default</option>
+                <option value="justify-start">Start</option>
+                <option value="justify-center">Center</option>
+                <option value="justify-end">End</option>
+                <option value="justify-between">Between</option>
+                <option value="justify-around">Around</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Align Items</label>
+              <select id="alignItemsSelect" class="w-full p-2 border border-gray-300 rounded text-sm">
+                <option value="">Default</option>
+                <option value="items-start">Start</option>
+                <option value="items-center">Center</option>
+                <option value="items-end">End</option>
+                <option value="items-stretch">Stretch</option>
+              </select>
+            </div>
+          </div>
+          
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Flex Direction</label>
+            <select id="flexDirectionSelect" class="w-full p-2 border border-gray-300 rounded text-sm">
+              <option value="">Default</option>
+              <option value="flex-row">Row</option>
+              <option value="flex-col">Column</option>
+              <option value="flex-row-reverse">Row Reverse</option>
+              <option value="flex-col-reverse">Column Reverse</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Hover Effects -->
+        <div class="space-y-3">
+          <h3 class="font-semibold text-gray-800 border-b pb-1">Hover Effects</h3>
+          
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Hover Background</label>
+            <select id="hoverBgSelect" class="w-full p-2 border border-gray-300 rounded text-sm">
+              <option value="">None</option>
+              <option value="hover:bg-gray-100">Gray 100</option>
+              <option value="hover:bg-blue-100">Blue 100</option>
+              <option value="hover:bg-green-100">Green 100</option>
+              <option value="hover:bg-red-100">Red 100</option>
+            </select>
+          </div>
+          
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Hover Transform</label>
+            <select id="hoverTransformSelect" class="w-full p-2 border border-gray-300 rounded text-sm">
+              <option value="">None</option>
+              <option value="hover:scale-105">Scale Up</option>
+              <option value="hover:scale-95">Scale Down</option>
+              <option value="hover:-translate-y-1">Move Up</option>
+              <option value="hover:rotate-1">Rotate</option>
+            </select>
+          </div>
+          
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Transition</label>
+            <select id="transitionSelect" class="w-full p-2 border border-gray-300 rounded text-sm">
+              <option value="">None</option>
+              <option value="transition-all">All</option>
+              <option value="transition-colors">Colors</option>
+              <option value="transition-transform">Transform</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Text Content -->
+        <div class="space-y-3">
+          <h3 class="font-semibold text-gray-800 border-b pb-1">Content</h3>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Text Content</label>
+            <textarea id="textContent" class="w-full p-2 border border-gray-300 rounded text-sm" rows="3" placeholder="Enter text content..."></textarea>
+          </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="space-y-2 border-t pt-4">
+          <button id="deleteElement" class="w-full px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 transition-colors">
+            Delete Element
+          </button>
+        </div>
+      </div>
+      
+      <!-- Layers Panel (hidden by default) -->
+      <div id="layersPanel" class="p-4 hidden">
+        <h3 class="font-semibold text-gray-800 mb-3">Layer Order</h3>
+        <div id="layerList" class="space-y-1">
+          <!-- Layers will be added here dynamically -->
+        </div>
+        <div class="mt-4 text-xs text-gray-500">
+          Drag layers to reorder elements. Top layers are in front.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Code Export Modal -->
+  <div id="codeModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
+    <div class="bg-white rounded-lg max-w-4xl w-full mx-4 max-h-[90vh] flex flex-col">
+      <div class="p-6 border-b border-gray-200 flex justify-between items-center">
+        <h3 class="text-lg font-bold">Generated Code</h3>
+        <button id="closeModal" class="text-gray-500 hover:text-gray-700">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+          </svg>
+        </button>
+      </div>
+      <div class="flex-1 overflow-auto p-6">
+        <pre id="generatedCode" class="bg-gray-900 text-green-400 p-4 rounded-lg overflow-auto text-sm"></pre>
+      </div>
+      <div class="p-6 border-t border-gray-200">
+        <button id="copyCode" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors">
+          Copy to Clipboard
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let selectedElement = null;
+    let elementCounter = 0;
+    let draggingElement = null;
+    let dragGhost = null;
+    let dragStartX = 0;
+    let dragStartY = 0;
+    
+    // Initialize drag and drop functionality
+    function initializeDragAndDrop() {
+      const draggableElements = document.querySelectorAll('.draggable-element');
+      const canvas = document.getElementById('canvas');
+
+      // Make library elements draggable
+      draggableElements.forEach(element => {
+        element.addEventListener('dragstart', (e) => {
+          e.dataTransfer.setData('text/plain', e.target.dataset.element);
+          e.dataTransfer.effectAllowed = 'copy';
+        });
+        element.setAttribute('draggable', true);
+      });
+
+      // Canvas drag events
+      canvas.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'copy';
+        canvas.classList.add('drag-over');
+      });
+
+      canvas.addEventListener('dragleave', (e) => {
+        if (!canvas.contains(e.relatedTarget)) {
+          canvas.classList.remove('drag-over');
+        }
+      });
+
+      canvas.addEventListener('drop', (e) => {
+        e.preventDefault();
+        canvas.classList.remove('drag-over');
+        
+        const elementType = e.dataTransfer.getData('text/plain');
+        if (elementType) {
+          createElement(elementType, e.clientX, e.clientY);
+        } else if (draggingElement) {
+          // This is a reposition operation
+          handleElementReposition(e);
+        }
+      });
+      
+      // Setup element dragging
+      setupElementDragging(canvas);
+    }
+    
+    // Setup dragging for elements on the canvas
+    function setupElementDragging(container) {
+      // Make all canvas elements draggable
+      container.addEventListener('mousedown', (e) => {
+        const target = e.target;
+        
+        // Only handle mousedown on our canvas elements, not inputs or textareas
+        if (target.matches('[id^="element-"]') && 
+            !target.matches('input, textarea, img') && 
+            e.target === target) {
+          
+          draggingElement = target;
+          dragStartX = e.clientX;
+          dragStartY = e.clientY;
+          
+          // Create a ghost element for dragging
+          dragGhost = target.cloneNode(true);
+          dragGhost.classList.add('dragging');
+          dragGhost.style.width = `${target.offsetWidth}px`;
+          dragGhost.style.height = `${target.offsetHeight}px`;
+          
+          // Position the ghost element
+          dragGhost.style.left = `${e.clientX}px`;
+          dragGhost.style.top = `${e.clientY}px`;
+          
+          document.body.appendChild(dragGhost);
+          
+          // Prevent default to avoid text selection
+          e.preventDefault();
+        }
+      });
+      
+      // Handle mousemove for dragging
+      document.addEventListener('mousemove', (e) => {
+        if (draggingElement && dragGhost) {
+          // Update ghost position
+          dragGhost.style.left = `${e.clientX}px`;
+          dragGhost.style.top = `${e.clientY}px`;
+          
+          // Highlight potential drop targets
+          updateDropTargets(e);
+        }
+      });
+      
+      // Handle mouseup for dropping
+      document.addEventListener('mouseup', (e) => {
+        if (draggingElement && dragGhost) {
+          // Remove the ghost element
+          if (dragGhost.parentElement) {
+            dragGhost.parentElement.removeChild(dragGhost);
+          }
+          
+          // Handle the drop
+          handleElementDrop(e);
+          
+          // Reset variables
+          draggingElement = null;
+          dragGhost = null;
+        }
+      });
+    }
+    
+    // Update drop targets during dragging
+    function updateDropTargets(e) {
+      // Remove previous drop zones
+      document.querySelectorAll('.drop-zone-highlight').forEach(el => {
+        el.classList.remove('drop-zone-highlight');
+      });
+      
+      // Find the element under the cursor
+      const elements = document.querySelectorAll('[id^="element-"]');
+      let dropTarget = null;
+      
+      for (let el of elements) {
+        if (el !== draggingElement) {
+          const rect = el.getBoundingClientRect();
+          // Check if cursor is over the element
+          if (e.clientX >= rect.left && e.clientX <= rect.right &&
+              e.clientY >= rect.top && e.clientY <= rect.bottom) {
+            // Check if the element can accept children
+            if (el.tagName.toLowerCase() !== 'input' && 
+                el.tagName.toLowerCase() !== 'textarea' && 
+                el.tagName.toLowerCase() !== 'img') {
+              dropTarget = el;
+              break;
+            }
+          }
+        }
+      }
+      
+      // Highlight the drop target
+      if (dropTarget) {
+        dropTarget.classList.add('drop-zone-highlight');
+      }
+    }
+    
+    // Handle element reposition during drag and drop
+    function handleElementReposition(e) {
+      if (!draggingElement) return;
+      
+      // Find the element under the cursor
+      const elements = document.querySelectorAll('[id^="element-"]');
+      let dropTarget = null;
+      
+      for (let el of elements) {
+        if (el !== draggingElement) {
+          const rect = el.getBoundingClientRect();
+          // Check if cursor is over the element
+          if (e.clientX >= rect.left && e.clientX <= rect.right &&
+              e.clientY >= rect.top && e.clientY <= rect.bottom) {
+            // Check if the element can accept children
+            if (el.tagName.toLowerCase() !== 'input' && 
+                el.tagName.toLowerCase() !== 'textarea' && 
+                el.tagName.toLowerCase() !== 'img') {
+              dropTarget = el;
+              break;
+            }
+          }
+        }
+      }
+      
+      if (dropTarget) {
+        // Add as child to the drop target
+        dropTarget.appendChild(draggingElement);
+      } else {
+        // Add to the main canvas
+        const canvas = document.getElementById('canvas');
+        canvas.appendChild(draggingElement);
+      }
+      
+      // Update the layers panel
+      updateLayersPanel();
+      
+      // Select the moved element
+      selectElement(draggingElement);
+    }
+    
+    // Handle element drop
+    function handleElementDrop(e) {
+      if (!draggingElement) return;
+      
+      // Find the element under the cursor
+      const elements = document.querySelectorAll('[id^="element-"]');
+      let dropTarget = null;
+      
+      for (let el of elements) {
+        if (el !== draggingElement) {
+          const rect = el.getBoundingClientRect();
+          // Check if cursor is over the element
+          if (e.clientX >= rect.left && e.clientX <= rect.right &&
+              e.clientY >= rect.top && e.clientY <= rect.bottom) {
+            // Check if the element can accept children
+            if (el.tagName.toLowerCase() !== 'input' && 
+                el.tagName.toLowerCase() !== 'textarea' && 
+                el.tagName.toLowerCase() !== 'img') {
+              dropTarget = el;
+              break;
+            }
+          }
+        }
+      }
+      
+      if (dropTarget) {
+        // Add as child to the drop target
+        dropTarget.appendChild(draggingElement);
+      } else {
+        // Add to the main canvas
+        const canvas = document.getElementById('canvas');
+        canvas.appendChild(draggingElement);
+      }
+      
+      // Update the layers panel
+      updateLayersPanel();
+      
+      // Select the moved element
+      selectElement(draggingElement);
+    }
+
+    // Create new element
+    function createElement(type, x, y) {
+      const canvas = document.getElementById('canvas');
+      const canvasRect = canvas.getBoundingClientRect();
+      
+      const element = document.createElement(type);
+      element.className = 'p-4 border border-gray-300 rounded bg-white cursor-pointer relative drop-zone';
+      element.contentEditable = 'true';
+      element.style.minHeight = '40px';
+      element.style.minWidth = '100px';
+      element.id = `element-${++elementCounter}`;
+      
+      // Set default content based on element type
+      const defaultContent = {
+        div: 'Container',
+        section: 'Section Content',
+        article: 'Article Content',
+        h1: 'Heading 1',
+        h2: 'Heading 2',
+        p: 'Paragraph text goes here...',
+        span: 'Span text',
+        button: 'Click Me',
+        input: '',
+        textarea: '',
+        img: ''
+      };
+      
+      if (type === 'input') {
+        element.type = 'text';
+        element.placeholder = 'Enter text...';
+        element.className = 'p-2 border border-gray-300 rounded w-full';
+        element.contentEditable = 'false';
+      } else if (type === 'textarea') {
+        element.placeholder = 'Enter text...';
+        element.className = 'p-2 border border-gray-300 rounded resize-none w-full';
+        element.contentEditable = 'false';
+        element.rows = 3;
+      } else if (type === 'img') {
+        element.src = 'https://img.freepik.com/premium-vector/product-tour-concept-illustration_114360-30857.jpg?semt=ais_hybrid&w=740&q=80';
+        element.alt = 'Placeholder image';
+        element.className = 'border border-gray-300 rounded w-full';
+        element.contentEditable = 'false';
+      } else {
+        element.textContent = defaultContent[type] || 'New Element';
+      }
+
+      // Add event listeners
+      element.addEventListener('click', (e) => {
+        e.stopPropagation();
+        selectElement(element);
+      });
+
+      element.addEventListener('mouseover', (e) => {
+        e.stopPropagation();
+        if (element !== selectedElement) {
+          element.classList.add('element-hover');
+        }
+      });
+
+      element.addEventListener('mouseout', (e) => {
+        e.stopPropagation();
+        element.classList.remove('element-hover');
+      });
+      
+      // Make the element draggable within the canvas
+      element.setAttribute('draggable', true);
+
+      canvas.appendChild(element);
+      selectElement(element);
+      
+      // Clear the placeholder text if it's the first element
+      const placeholder = canvas.querySelector('.text-center.text-gray-500');
+      if (placeholder) {
+        placeholder.style.display = 'none';
+      }
+      
+      // Update layers panel
+      updateLayersPanel();
+    }
+
+    // Select element and update properties panel
+    function selectElement(element) {
+      // Remove selection from previous element
+      if (selectedElement) {
+        selectedElement.classList.remove('element-selected');
+      }
+      
+      selectedElement = element;
+      element.classList.add('element-selected');
+      element.classList.remove('element-hover');
+      
+      updatePropertiesPanel();
+      updateSelectedLayer();
+    }
+
+    // Update properties panel
+    function updatePropertiesPanel() {
+      const panel = document.getElementById('propertiesPanel');
+      const selectedElementInfo = document.getElementById('selectedElement');
+      
+      if (selectedElement) {
+        panel.classList.remove('hidden');
+        document.getElementById('layersPanel').classList.add('hidden');
+        document.getElementById('propertiesTab').classList.add('border-blue-500', 'text-blue-600');
+        document.getElementById('layersTab').classList.remove('border-blue-500', 'text-blue-600');
+        
+        selectedElementInfo.textContent = `${selectedElement.tagName.toLowerCase()} #${selectedElement.id}`;
+        
+        // Update all selects based on current element classes
+        updateSelectsFromElement();
+      } else {
+        panel.classList.add('hidden');
+        selectedElementInfo.textContent = 'No element selected';
+      }
+    }
+
+    // Update select elements based on current element
+    function updateSelectsFromElement() {
+      if (!selectedElement) return;
+      
+      const classes = selectedElement.className.split(' ');
+      
+      // Update text content
+      const textContent = document.getElementById('textContent');
+      if (selectedElement.tagName.toLowerCase() !== 'img') {
+        if (selectedElement.tagName.toLowerCase() === 'input') {
+          textContent.value = selectedElement.placeholder || '';
+        } else if (selectedElement.tagName.toLowerCase() === 'textarea') {
+          textContent.value = selectedElement.value || selectedElement.placeholder || '';
+        } else {
+          textContent.value = selectedElement.textContent || '';
+        }
+      } else {
+        textContent.value = '';
+        textContent.disabled = true;
+      }
+      
+      // Update all select fields
+      updateSelectFromClasses('displaySelect', classes, ['block', 'inline-block', 'inline', 'flex', 'grid', 'hidden']);
+      updateSelectFromClasses('widthSelect', classes, ['w-full', 'w-1/2', 'w-1/3', 'w-1/4', 'w-fit', 'w-screen']);
+      updateSelectFromClasses('heightSelect', classes, ['h-full', 'h-screen', 'h-fit', 'h-32', 'h-64']);
+      updateSelectFromClasses('paddingSelect', classes, ['p-1', 'p-2', 'p-4', 'p-6', 'p-8', 'p-12']);
+      updateSelectFromClasses('marginSelect', classes, ['m-1', 'm-2', 'm-4', 'm-6', 'm-8', 'm-auto']);
+      updateSelectFromClasses('bgColorSelect', classes, [
+        'bg-white', 'bg-black', 'bg-gray-50', 'bg-gray-100', 'bg-gray-200', 'bg-gray-500',
+        'bg-red-500', 'bg-blue-500', 'bg-green-500', 'bg-yellow-500', 'bg-purple-500', 'bg-pink-500'
+      ]);
+      updateSelectFromClasses('bgOpacitySelect', classes, ['bg-opacity-75', 'bg-opacity-50', 'bg-opacity-25', 'bg-opacity-10']);
+      updateSelectFromClasses('gradientSelect', classes, [
+        'bg-gradient-to-r from-blue-500 to-purple-600', 
+        'bg-gradient-to-br from-pink-500 to-orange-400', 
+        'bg-gradient-to-t from-green-400 to-blue-500', 
+        'bg-gradient-to-tr from-yellow-400 to-red-500'
+      ]);
+      updateSelectFromClasses('borderSelect', classes, [
+        'border', 'border-2', 'border-4', 'border-gray-300', 'border-blue-500', 'border-red-500'
+      ]);
+      updateSelectFromClasses('radiusSelect', classes, ['rounded-sm', 'rounded', 'rounded-lg', 'rounded-xl', 'rounded-full']);
+      updateSelectFromClasses('shadowSelect', classes, ['shadow-sm', 'shadow', 'shadow-lg', 'shadow-xl', 'shadow-2xl']);
+      updateSelectFromClasses('textColorSelect', classes, [
+        'text-black', 'text-white', 'text-gray-500', 'text-gray-700', 
+        'text-red-500', 'text-blue-500', 'text-green-500'
+      ]);
+      updateSelectFromClasses('fontSizeSelect', classes, ['text-xs', 'text-sm', 'text-base', 'text-lg', 'text-xl', 'text-2xl']);
+      updateSelectFromClasses('fontWeightSelect', classes, ['font-light', 'font-normal', 'font-semibold', 'font-bold']);
+      updateSelectFromClasses('textAlignSelect', classes, ['text-left', 'text-center', 'text-right', 'text-justify']);
+      updateSelectFromClasses('justifySelect', classes, ['justify-start', 'justify-center', 'justify-end', 'justify-between', 'justify-around']);
+      updateSelectFromClasses('alignItemsSelect', classes, ['items-start', 'items-center', 'items-end', 'items-stretch']);
+      updateSelectFromClasses('flexDirectionSelect', classes, ['flex-row', 'flex-col', 'flex-row-reverse', 'flex-col-reverse']);
+      updateSelectFromClasses('hoverBgSelect', classes, ['hover:bg-gray-100', 'hover:bg-blue-100', 'hover:bg-green-100', 'hover:bg-red-100']);
+      updateSelectFromClasses('hoverTransformSelect', classes, ['hover:scale-105', 'hover:scale-95', 'hover:-translate-y-1', 'hover:rotate-1']);
+      updateSelectFromClasses('transitionSelect', classes, ['transition-all', 'transition-colors', 'transition-transform']);
+    }
+
+    function updateSelectFromClasses(selectId, classes, possibleValues) {
+      const select = document.getElementById(selectId);
+      if (!select) return;
+      
+      // For gradient, we need to check multiple classes
+      if (selectId === 'gradientSelect') {
+        for (const value of possibleValues) {
+          const gradientClasses = value.split(' ');
+          if (gradientClasses.every(cls => classes.includes(cls))) {
+            select.value = value;
+            return;
+          }
+        }
+        select.value = '';
+        return;
+      }
+      
+      // For other selects, find the first matching class
+      const foundClass = classes.find(cls => possibleValues.includes(cls));
+      select.value = foundClass || '';
+    }
+
+    // Initialize property controls
+    function initializePropertyControls() {
+      const controls = [
+        'displaySelect', 'widthSelect', 'heightSelect', 'paddingSelect', 'marginSelect',
+        'bgColorSelect', 'bgOpacitySelect', 'gradientSelect', 'borderSelect', 'radiusSelect',
+        'shadowSelect', 'textColorSelect', 'fontSizeSelect', 'fontWeightSelect', 'textAlignSelect',
+        'justifySelect', 'alignItemsSelect', 'flexDirectionSelect', 'hoverBgSelect',
+        'hoverTransformSelect', 'transitionSelect'
+      ];
+      
+      controls.forEach(controlId => {
+        const control = document.getElementById(controlId);
+        if (control) {
+          control.addEventListener('change', updateElementStyle);
+        }
+      });
+      
+      // Text content
+      document.getElementById('textContent').addEventListener('input', (e) => {
+        if (selectedElement) {
+          if (selectedElement.tagName.toLowerCase() === 'input') {
+            selectedElement.placeholder = e.target.value;
+          } else if (selectedElement.tagName.toLowerCase() === 'textarea') {
+            selectedElement.value = e.target.value;
+          } else if (selectedElement.tagName.toLowerCase() !== 'img') {
+            selectedElement.textContent = e.target.value;
+          }
+        }
+      });
+      
+      // Delete element
+      document.getElementById('deleteElement').addEventListener('click', () => {
+        if (selectedElement) {
+          selectedElement.remove();
+          selectedElement = null;
+          updatePropertiesPanel();
+          updateLayersPanel();
+          
+          // Show placeholder if canvas is empty
+          const canvas = document.getElementById('canvas');
+          if (canvas.children.length === 1) {
+            const placeholder = canvas.querySelector('.text-center.text-gray-500');
+            if (placeholder) {
+              placeholder.style.display = 'block';
+            }
+          }
+        }
+      });
+      
+      // Tab switching
+      document.getElementById('propertiesTab').addEventListener('click', () => {
+        document.getElementById('propertiesPanel').classList.remove('hidden');
+        document.getElementById('layersPanel').classList.add('hidden');
+        document.getElementById('propertiesTab').classList.add('border-blue-500', 'text-blue-600');
+        document.getElementById('layersTab').classList.remove('border-blue-500', 'text-blue-600');
+        updatePropertiesPanel();
+      });
+      
+      document.getElementById('layersTab').addEventListener('click', () => {
+        document.getElementById('propertiesPanel').classList.add('hidden');
+        document.getElementById('layersPanel').classList.remove('hidden');
+        document.getElementById('layersTab').classList.add('border-blue-500', 'text-blue-600');
+        document.getElementById('propertiesTab').classList.remove('border-blue-500', 'text-blue-600');
+        updateLayersPanel();
+      });
+    }
+
+    // Update element style based on property changes
+    function updateElementStyle() {
+      if (!selectedElement) return;
+      
+      // Collect all current classes that we want to preserve
+      let currentClasses = selectedElement.className.split(' ').filter(cls => {
+        // Keep classes that aren't controlled by our selects
+        return !isControlledClass(cls);
+      });
+      
+      // Add new classes from selects
+      const controls = {
+        displaySelect: '',
+        widthSelect: '',
+        heightSelect: '',
+        paddingSelect: '',
+        marginSelect: '',
+        bgColorSelect: '',
+        bgOpacitySelect: '',
+        gradientSelect: '',
+        borderSelect: '',
+        radiusSelect: '',
+        shadowSelect: '',
+        textColorSelect: '',
+        fontSizeSelect: '',
+        fontWeightSelect: '',
+        textAlignSelect: '',
+        justifySelect: '',
+        alignItemsSelect: '',
+        flexDirectionSelect: '',
+        hoverBgSelect: '',
+        hoverTransformSelect: '',
+        transitionSelect: ''
+      };
+      
+      Object.keys(controls).forEach(controlId => {
+        const control = document.getElementById(controlId);
+        if (control && control.value) {
+          if (controlId === 'gradientSelect') {
+            // Handle gradient classes specially (multiple classes)
+            const gradientClasses = control.value.split(' ');
+            currentClasses = currentClasses.concat(gradientClasses);
+          } else {
+            currentClasses.push(control.value);
+          }
+        }
+      });
+      
+      // Apply the updated classes
+      selectedElement.className = currentClasses.join(' ') + ' p-4 border border-gray-300 rounded bg-white cursor-pointer relative drop-zone';
+    }
+    
+    // Check if a class is controlled by our property panel
+    function isControlledClass(className) {
+      const controlledPrefixes = [
+        'block', 'inline', 'flex', 'grid', 'hidden',
+        'w-', 'h-', 'p-', 'm-', 'bg-', 'border', 'rounded', 'shadow',
+        'text-', 'font-', 'justify-', 'items-', 'flex-',
+        'hover:', 'transition', 'from-', 'via-', 'to-', 'bg-gradient'
+      ];
+      
+      return controlledPrefixes.some(prefix => className.startsWith(prefix)) ||
+             ['auto', 'full', 'screen', 'fit'].includes(className);
+    }
+
+    // Update the layers panel
+    function updateLayersPanel() {
+      const layerList = document.getElementById('layerList');
+      layerList.innerHTML = '';
+      
+      // Get all elements from the canvas
+      const canvas = document.getElementById('canvas');
+      const elements = Array.from(canvas.children).filter(child => child.id && child.id.startsWith('element-'));
+      
+      // Create layer items in reverse order (top layer first)
+      elements.reverse().forEach((element, index) => {
+        const layerItem = document.createElement('div');
+        layerItem.className = 'layer-item';
+        layerItem.dataset.elementId = element.id;
+        
+        // Create content for the layer item
+        const tag = element.tagName.toLowerCase();
+        const displayText = tag === 'div' ? 'Container' : 
+                           tag === 'section' ? 'Section' :
+                           tag === 'article' ? 'Article' :
+                           tag === 'p' ? 'Paragraph' :
+                           tag === 'button' ? 'Button' : tag.toUpperCase();
+        
+        layerItem.innerHTML = `
+          <div class="flex items-center justify-between">
+            <span class="text-sm">${displayText}</span>
+            <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l4-4 4 4m0 6l-4 4-4-4"></path>
+            </svg>
+          </div>
+        `;
+        
+        // Add click event to select the element
+        layerItem.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const element = document.getElementById(layerItem.dataset.elementId);
+          if (element) {
+            selectElement(element);
+          }
+        });
+        
+        layerList.appendChild(layerItem);
+      });
+      
+      // Make layers sortable
+      makeLayersSortable();
+    }
+    
+    // Make the layers list sortable
+    function makeLayersSortable() {
+      const layerList = document.getElementById('layerList');
+      let draggedItem = null;
+      
+      // Add drag events to each layer item
+      const layerItems = layerList.querySelectorAll('.layer-item');
+      layerItems.forEach(item => {
+        item.setAttribute('draggable', true);
+        
+        item.addEventListener('dragstart', (e) => {
+          draggedItem = item;
+          e.dataTransfer.effectAllowed = 'move';
+          e.dataTransfer.setData('text/plain', item.dataset.elementId);
+          
+          // Add visual feedback
+          setTimeout(() => {
+            item.style.opacity = '0.4';
+          }, 0);
+        });
+        
+        item.addEventListener('dragend', (e) => {
+          if (draggedItem) {
+            draggedItem.style.opacity = '1';
+            draggedItem = null;
+          }
+        });
+        
+        item.addEventListener('dragover', (e) => {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'move';
+        });
+        
+        item.addEventListener('dragenter', (e) => {
+          e.preventDefault();
+          if (item !== draggedItem) {
+            item.classList.add('bg-blue-50');
+          }
+        });
+        
+        item.addEventListener('dragleave', (e) => {
+          item.classList.remove('bg-blue-50');
+        });
+        
+        item.addEventListener('drop', (e) => {
+          e.preventDefault();
+          item.classList.remove('bg-blue-50');
+          
+          if (item !== draggedItem) {
+            const draggedId = e.dataTransfer.getData('text/plain');
+            const draggedElement = document.getElementById(draggedId);
+            const targetId = item.dataset.elementId;
+            const targetElement = document.getElementById(targetId);
+            
+            // Reorder elements in the DOM
+            const canvas = document.getElementById('canvas');
+            const elements = Array.from(canvas.children).filter(child => child.id && child.id.startsWith('element-'));
+            
+            // Find indices of the elements
+            const draggedIndex = elements.findIndex(el => el.id === draggedId);
+            const targetIndex = elements.findIndex(el => el.id === targetId);
+            
+            if (draggedIndex >= 0 && targetIndex >= 0) {
+              // Remove the dragged element
+              const removedElement = elements.splice(draggedIndex, 1)[0];
+              
+              // Insert it at the target position
+              const insertIndex = draggedIndex < targetIndex ? targetIndex : targetIndex + 1;
+              elements.splice(insertIndex, 0, removedElement);
+              
+              // Re-append all elements in the new order
+              elements.reverse().forEach(element => {
+                canvas.appendChild(element);
+              });
+              
+              // Update the layers panel
+              updateLayersPanel();
+              
+              // If the selected element was moved, reselect it
+              if (selectedElement && selectedElement.id === draggedId) {
+                selectElement(draggedElement);
+              }
+            }
+          }
+        });
+      });
+    }
+    
+    // Update the selected layer highlight
+    function updateSelectedLayer() {
+      const layerItems = document.querySelectorAll('#layerList .layer-item');
+      layerItems.forEach(item => {
+        item.classList.remove('selected');
+        if (selectedElement && item.dataset.elementId === selectedElement.id) {
+          item.classList.add('selected');
+        }
+      });
+    }
+
+    // Clear canvas
+    function clearCanvas() {
+      const canvas = document.getElementById('canvas');
+      // Remove all child elements except the placeholder
+      const elements = canvas.querySelectorAll('[id^="element-"]');
+      elements.forEach(el => el.remove());
+      
+      // Show placeholder
+      const placeholder = canvas.querySelector('.text-center.text-gray-500');
+      if (placeholder) {
+        placeholder.style.display = 'block';
+      }
+      
+      selectedElement = null;
+      updatePropertiesPanel();
+      updateLayersPanel();
+    }
+
+    // Export code
+    function exportCode() {
+      const canvas = document.getElementById('canvas');
+      const elements = Array.from(canvas.children).filter(child => child.id && child.id.startsWith('element-'));
+      
+      let html = '';
+      // Process elements in the correct order (reverse because we append in reverse)
+      elements.reverse().forEach(element => {
+        html += generateElementHTML(element, 0);
+      });
+      
+      const fullHTML = `
+${html}`;
+      
+      document.getElementById('generatedCode').textContent = fullHTML;
+      document.getElementById('codeModal').classList.remove('hidden');
+    }
+    
+    // Generate HTML for an element
+    function generateElementHTML(element, indent) {
+      const spaces = '  '.repeat(indent);
+      const tag = element.tagName.toLowerCase();
+      const classes = element.className
+        .replace('element-selected', '')
+        .replace('element-hover', '')
+        .replace('drop-zone', '')
+        .replace('drop-zone-highlight', '')
+        .replace('p-4', '')
+        .replace('border', '')
+        .replace('border-gray-300', '')
+        .replace('rounded', '')
+        .replace('bg-white', '')
+        .replace('cursor-pointer', '')
+        .replace('relative', '')
+        .trim();
+      const classAttr = classes ? ` class="${classes}"` : '';
+      
+      if (tag === 'input') {
+        const type = element.type ? ` type="${element.type}"` : '';
+        const placeholder = element.placeholder ? ` placeholder="${element.placeholder}"` : '';
+        return `${spaces}<${tag}${classAttr}${type}${placeholder}>\n`;
+      } else if (tag === 'img') {
+        const src = element.src ? ` src="${element.src}"` : '';
+        const alt = element.alt ? ` alt="${element.alt}"` : '';
+        return `${spaces}<${tag}${classAttr}${src}${alt}>\n`;
+      } else if (tag === 'textarea') {
+        const placeholder = element.placeholder ? ` placeholder="${element.placeholder}"` : '';
+        return `${spaces}<${tag}${classAttr}${placeholder}>${element.value || ''}</${tag}>\n`;
+      } else {
+        let html = `${spaces}<${tag}${classAttr}>`;
+        
+        // Add children if any
+        const children = Array.from(element.children).filter(child => child.id && child.id.startsWith('element-'));
+        if (children.length > 0) {
+          html += '\n';
+          children.reverse().forEach(child => {
+            html += generateElementHTML(child, indent + 1);
+          });
+          html += `${spaces}</${tag}>\n`;
+        } else {
+          const content = element.textContent.trim();
+          if (content) {
+            html += content;
+          }
+          html += `</${tag}>\n`;
+        }
+        
+        return html;
+      }
+    }
+    
+    // Copy code to clipboard
+    function copyToClipboard() {
+      const code = document.getElementById('generatedCode').textContent;
+      navigator.clipboard.writeText(code).then(() => {
+        const button = document.getElementById('copyCode');
+        const originalText = button.textContent;
+        button.textContent = 'Copied!';
+        button.className = 'px-4 py-2 bg-green-500 text-white rounded';
+        
+        setTimeout(() => {
+          button.textContent = originalText;
+          button.className = 'px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors';
+        }, 2000);
+      });
+    }
+
+    // Canvas click handler (deselect elements)
+    function handleCanvasClick(e) {
+      if (e.target.id === 'canvas') {
+        if (selectedElement) {
+          selectedElement.classList.remove('element-selected');
+          selectedElement = null;
+          updatePropertiesPanel();
+        }
+      }
+    }
+
+    // Keyboard shortcuts
+    function handleKeyboardShortcuts(e) {
+      if (e.key === 'Delete' && selectedElement) {
+        selectedElement.remove();
+        selectedElement = null;
+        updatePropertiesPanel();
+        updateLayersPanel();
+      }
+      
+      if (e.key === 'Escape' && selectedElement) {
+        selectedElement.classList.remove('element-selected');
+        selectedElement = null;
+        updatePropertiesPanel();
+      }
+    }
+
+    // Initialize everything
+    document.addEventListener('DOMContentLoaded', function() {
+      initializeDragAndDrop();
+      initializePropertyControls();
+      
+      // Event listeners
+      document.getElementById('clearCanvas').addEventListener('click', clearCanvas);
+      document.getElementById('exportCode').addEventListener('click', exportCode);
+      document.getElementById('canvas').addEventListener('click', handleCanvasClick);
+      document.addEventListener('keydown', handleKeyboardShortcuts);
+      
+      // Modal controls
+      document.getElementById('closeModal').addEventListener('click', () => {
+        document.getElementById('codeModal').classList.add('hidden');
+      });
+      
+      document.getElementById('copyCode').addEventListener('click', copyToClipboard);
+      
+      // Close modal on backdrop click
+      document.getElementById('codeModal').addEventListener('click', (e) => {
+        if (e.target.id === 'codeModal') {
+          document.getElementById('codeModal').classList.add('hidden');
+        }
+      });
+      
+      console.log('Advanced Tailwind UI Generator initialized!');
+    });
+  </script>
+</body>
+</html>
